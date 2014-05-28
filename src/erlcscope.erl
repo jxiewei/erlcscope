@@ -305,22 +305,32 @@ get_define_name(Def) ->
 % recursively find erlang files, returns a list of filenames
 
 find_source_files(Path) ->
-	{ok, Files} = file:list_dir(Path),
-	lists:foldr(fun(F,Acc) ->
-				File = filename:join(Path, F),
-				{ok, Info=#file_info{}} = file:read_file_info(File),
-				case Info#file_info.type of 
-					directory -> 
-						find_source_files(File) ++ Acc;
-					regular ->
-						case lists:member(filename:extension(File), ?ERL_EXTENSIONS) of 
-							true -> [File|Acc];
-							false -> Acc
-						end;
-					_ -> 
-						Acc
-				end % case end
-				end, [], Files).
+    Acc = [],
+    find_source_files(Path, Acc).
+
+find_source_files(Path, #file_info{type=Type}, Acc) ->
+    case Type of
+        directory ->
+            {ok, Files} = file:list_dir(Path),
+            AbsFiles = lists:map(fun(Elem) -> filename:join(Path, Elem) end, Files),
+            lists:foldr(fun find_source_files/2, Acc, AbsFiles);
+        regular ->
+            case lists:member(filename:extension(Path), ?ERL_EXTENSIONS) of 
+            true -> 
+                %%io:format("adding erl file ~p~n", [Path]),
+                [Path|Acc];
+            false -> Acc
+            end;
+        _ -> Acc
+    end.
+find_source_files(Path, Acc) ->
+    case file:read_file_info(Path) of
+        {error, _Reason} -> 
+            Acc;
+        {ok, Info=#file_info{}} ->
+            find_source_files(Path, Info, Acc)
+    end.
+    
 
 
 debug_print_state(S=#state{}) ->
